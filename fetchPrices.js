@@ -1,7 +1,7 @@
 // albionsito-backend2/fetchPrices.js
 const fetch = require('node-fetch');
 
-function esReciente(fechaISO, minutos = 5) {
+function esReciente(fechaISO, minutos = 60) {
   const fecha = new Date(fechaISO);
   const ahora = new Date();
   const diferencia = (ahora - fecha) / 60000;
