@@ -1,24 +1,29 @@
 // albionsito-backend2/index.js
-const express = require('express');
-const cors = require('cors');
-const fetchPrices = require('./fetchPrices');
+const express = require("express");
+const cors = require("cors");
+const { getItemPrice } = require("./services/fetchSingleItem");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 app.use(cors());
 
-app.get('/items', async (req, res) => {
+app.get("/items", async (req, res) => {
   try {
-    const data = await fetchPrices();
-    console.log('✅ Backend2 respondió con items organizados:', Object.keys(data).length);
-    res.json(data);
+    const itemIds = ["T8_POTION_INVISIBILITY", "T8_BAG"]; // puedes aumentar esta lista
+    const results = [];
+
+    for (const id of itemIds) {
+      const data = await getItemPrice(id);
+      if (data) results.push(data);
+    }
+
+    res.json(results);
   } catch (error) {
-    console.error('❌ Error en /items:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: "Error al obtener los datos" });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend2 corriendo en puerto ${PORT}`);
+  console.log(`✅ Backend 2 escuchando en http://localhost:${PORT}`);
 });
