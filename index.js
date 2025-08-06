@@ -3,44 +3,53 @@ const fetch = require('node-fetch');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 
-// Permitir CORS desde cualquier origen
-app.use(cors());
+// ✅ Permitir solo tu frontend de Vercel
+const corsOptions = {
+  origin: 'https://albionsito.vercel.app',
+  methods: ['GET'],
+  optionsSuccessStatus: 200
+};
 
-// Función reutilizable para consultar precios desde la API externa
-const fetchItemPrices = async (itemName, res) => {
+app.use(cors(corsOptions));
+
+// 🚀 Ruta de búsqueda por nombre
+app.get('/api/item', async (req, res) => {
+  const itemName = req.query.name;
+
+  console.log('[LOG] Petición recibida a /api/item con nombre:', itemName);
+
   if (!itemName) {
-    return res.status(400).json({ error: 'El parámetro del nombre del ítem es obligatorio.' });
+    console.warn('[WARN] No se proporcionó "name"');
+    return res.status(400).json({ error: 'El parámetro "name" es obligatorio.' });
   }
 
   try {
     const url = `https://api.nyxsoft.dev/searchItemPrices?query=${encodeURIComponent(itemName)}`;
+    console.log('[LOG] Consultando:', url);
+    
     const response = await fetch(url);
 
     if (!response.ok) {
+      console.error('[ERROR] La API externa respondió mal:', response.status);
       return res.status(500).json({ error: 'Error al consultar la API externa.' });
     }
 
     const data = await response.json();
+    console.log('[LOG] Respuesta exitosa con', data.length, 'resultados');
     res.json(data);
   } catch (error) {
-    console.error('[Backend2] Error al obtener precios:', error);
+    console.error('[FATAL ERROR] Falló la búsqueda:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
-};
-
-// Ruta original: /api/item?name=ITEM_ID
-app.get('/api/item', (req, res) => {
-  fetchItemPrices(req.query.name, res);
 });
 
-// Ruta adicional para que el frontend funcione: /api/precios?id=ITEM_ID
-app.get('/api/precios', (req, res) => {
-  fetchItemPrices(req.query.id, res);
+// ✅ Ruta de prueba para saber si el backend vive
+app.get('/', (req, res) => {
+  res.send('🟢 Backend2 funcionando correctamente.');
 });
 
-// Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`✅ Backend2 corriendo en http://localhost:${PORT}`);
 });
