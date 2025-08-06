@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 
-function esReciente(fechaISO, minutos = 15) {
+function esReciente(fechaISO, minutos = 5) {
   if (!fechaISO) return false;
   const fecha = new Date(fechaISO);
   const ahora = new Date();
