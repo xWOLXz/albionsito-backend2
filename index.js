@@ -5,63 +5,42 @@ const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Lista de ciudades válidas
-const CITIES = ['Caerleon', 'Bridgewatch', 'Lymhurst', 'Martlock', 'Thetford', 'Fort Sterling', 'Brecilien'];
-
-// Middleware
 app.use(cors());
 
-// Ruta básica
-app.get('/', (req, res) => {
-  res.send('✅ albionsito-backend2 funcionando correctamente.');
-});
-
-// Ruta para obtener datos desde Albion Data API
 app.get('/items', async (req, res) => {
   try {
-    // Cargar lista de ítems reales (desde GitHub AlbionData, por ejemplo)
+    // 1. Obtener el listado de ítems reales
     const itemsRes = await fetch('https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/items.json');
     const itemsJson = await itemsRes.json();
 
-    // Filtrar ítems comerciables
-    const validItems = itemsJson.filter(item => item.UniqueName && item.LocalizedNames?.['ES'] && item.Tradable);
+    // 2. Filtrar ítems comerciables (sin journals, avatars, black market, etc.)
+    const comerciables = itemsJson.filter(item =>
+      item.UniqueName &&
+      item.ShopCategory &&
+      !item.UniqueName.includes('TOKEN') &&
+      !item.UniqueName.includes('JOURNAL') &&
+      !item.UniqueName.includes('QUESTITEM') &&
+      !item.UniqueName.includes('AVATAR') &&
+      !item.UniqueName.includes('TUTORIAL') &&
+      !item.UniqueName.includes('EXP') &&
+      !item.UniqueName.includes('SKILLBOOK')
+    );
 
-    // Tomar solo los primeros 50 para no saturar Render Free
-    const limitedItems = validItems.slice(0, 50);
+    // 3. Extraer IDs únicos
+    const ids = [...new Set(comerciables.map(i => i.UniqueName))].slice(0, 200); // se puede subir a más si lo soporta render
 
-    const itemIds = limitedItems.map(item => item.UniqueName).join(',');
-    const locations = CITIES.join(',');
+    // 4. Consultar la API de respaldo
+    const pricesRes = await fetch(`https://west.albion-online-data.com/api/v2/stats/prices?ids=${ids.join(',')}&locations=Caerleon,Bridgewatch,Lymhurst,Martlock,Thetford,Fort%20Sterling,Brecilien`);
+    const prices = await pricesRes.json();
 
-    // Consultar API de precios
-    const url = `https://west.albion-online-data.com/api/v2/stats/prices?ids=${itemIds}&locations=${locations}`;
-    const pricesRes = await fetch(url);
-    const pricesJson = await pricesRes.json();
-
-    // Enlazar info visual con precios
-    const enrichedData = limitedItems.map((item) => {
-      const matches = pricesJson.filter(p => p.item_id === item.UniqueName);
-
-      const sell_price_min = Math.min(...matches.map(p => p.sell_price_min).filter(p => p > 0)) || 0;
-      const buy_price_max = Math.max(...matches.map(p => p.buy_price_max).filter(p => p > 0)) || 0;
-
-      return {
-        item_id: item.UniqueName,
-        localized_name: item.LocalizedNames['ES'],
-        image: `https://render.albiononline.com/v1/item/${item.UniqueName}.png`,
-        sell_price_min,
-        buy_price_max
-      };
-    });
-
-    console.log(`✅ Backend2 respondió con ${enrichedData.length} ítems`);
-    res.json(enrichedData);
-  } catch (err) {
-    console.error('❌ Error en backend2:', err);
-    res.status(500).json({ error: 'Error al obtener datos' });
+    console.log(`✅ [BACKUP] ${prices.length} precios recuperados`);
+    res.json(prices);
+  } catch (error) {
+    console.error('❌ [BACKUP] Error:', error);
+    res.status(500).json({ error: 'Error al obtener precios desde el backend de respaldo' });
   }
 });
 
-// Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`🚀 Backend2 corriendo en el puerto ${PORT}`);
+  console.log(`🚀 [BACKUP] Servidor corriendo en puerto ${PORT}`);
 });
