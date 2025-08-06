@@ -1,46 +1,34 @@
 const express = require('express');
-const cors = require('cors');
 const fetch = require('node-fetch');
+const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 
 app.get('/items', async (req, res) => {
   try {
-    // 1. Obtener el listado de ítems reales
-    const itemsRes = await fetch('https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/items.json');
-    const itemsJson = await itemsRes.json();
+    const itemListRes = await fetch('https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/formatted/items.json');
+    const itemList = await itemListRes.json();
 
-    // 2. Filtrar ítems comerciables (sin journals, avatars, black market, etc.)
-    const comerciables = itemsJson.filter(item =>
-      item.UniqueName &&
-      item.ShopCategory &&
-      !item.UniqueName.includes('TOKEN') &&
-      !item.UniqueName.includes('JOURNAL') &&
-      !item.UniqueName.includes('QUESTITEM') &&
-      !item.UniqueName.includes('AVATAR') &&
-      !item.UniqueName.includes('TUTORIAL') &&
-      !item.UniqueName.includes('EXP') &&
-      !item.UniqueName.includes('SKILLBOOK')
-    );
+    const tradeableItemIds = itemList
+      .filter(item => item.UniqueName && !item.UniqueName.includes("QUESTITEM") && !item.UniqueName.includes("TEST_") && !item.UniqueName.includes("JOURNAL") && !item.UniqueName.includes("ARTEFACT"))
+      .map(item => item.UniqueName);
 
-    // 3. Extraer IDs únicos
-    const ids = [...new Set(comerciables.map(i => i.UniqueName))].slice(0, 200); // se puede subir a más si lo soporta render
+    const ids = tradeableItemIds.slice(0, 100).join(',');
 
-    // 4. Consultar la API de respaldo
-    const pricesRes = await fetch(`https://west.albion-online-data.com/api/v2/stats/prices?ids=${ids.join(',')}&locations=Caerleon,Bridgewatch,Lymhurst,Martlock,Thetford,Fort%20Sterling,Brecilien`);
-    const prices = await pricesRes.json();
+    const priceRes = await fetch(`https://api.navi.albion-online-data.com/v1/stats/prices/${ids}?locations=Caerleon,Bridgewatch,Lymhurst,Martlock,Thetford,Fort Sterling,Brecilien`);
+    const prices = await priceRes.json();
 
-    console.log(`✅ [BACKUP] ${prices.length} precios recuperados`);
+    console.log('✅ Datos obtenidos desde NAVI:', prices.length);
     res.json(prices);
   } catch (error) {
-    console.error('❌ [BACKUP] Error:', error);
-    res.status(500).json({ error: 'Error al obtener precios desde el backend de respaldo' });
+    console.error('❌ Error en backend2:', error.message);
+    res.status(500).json({ error: 'Error interno en backend2' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 [BACKUP] Servidor corriendo en puerto ${PORT}`);
+  console.log(`✅ Backend2 corriendo en puerto ${PORT}`);
 });
