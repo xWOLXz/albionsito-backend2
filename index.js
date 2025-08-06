@@ -9,23 +9,37 @@ app.use(cors());
 
 app.get('/items', async (req, res) => {
   try {
-    console.log('🔁 Solicitando lista de ítems desde GitHub...');
+    console.log('🔁 Obteniendo ítems comerciables desde GitHub...');
     const itemListRes = await fetch('https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/formatted/items.json');
+
+    if (!itemListRes.ok) {
+      throw new Error(`❌ Fallo al obtener items.json: ${itemListRes.status}`);
+    }
+
     const itemList = await itemListRes.json();
 
     const tradeableItemIds = itemList
       .filter(item => item.UniqueName && !item.UniqueName.includes("QUESTITEM") && !item.UniqueName.includes("TEST_") && !item.UniqueName.includes("JOURNAL") && !item.UniqueName.includes("ARTEFACT"))
       .map(item => item.UniqueName);
 
-    const ids = tradeableItemIds.slice(0, 25).join(','); // 🔥 SOLO 25 ítems por ahora para evitar bloqueo
+    const ids = tradeableItemIds.slice(0, 25).join(',');
 
     const naviUrl = `https://api.navi.albion-online-data.com/v1/stats/prices/${ids}?locations=Caerleon,Bridgewatch,Lymhurst,Martlock,Thetford,Fort Sterling,Brecilien`;
-
     console.log('🌐 Solicitando precios a NAVI:', naviUrl);
+
     const priceRes = await fetch(naviUrl);
+
+    if (!priceRes.ok) {
+      throw new Error(`❌ Fallo al obtener precios: ${priceRes.status}`);
+    }
+
     const prices = await priceRes.json();
 
-    console.log(`✅ ${prices.length} precios recibidos desde NAVI`);
+    if (!Array.isArray(prices)) {
+      throw new Error('❌ La respuesta de precios no es un array válido.');
+    }
+
+    console.log(`✅ NAVI devolvió ${prices.length} precios.`);
     res.json(prices);
   } catch (error) {
     console.error('❌ Error en backend2:', error.message);
