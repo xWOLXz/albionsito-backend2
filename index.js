@@ -3,41 +3,39 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 
 app.get("/api/prices", async (req, res) => {
+  const { items, locations, qualities = 1 } = req.query;
+
+  if (!items || !locations) {
+    return res.status(400).json({ error: "Faltan parámetros: items o locations" });
+  }
+
+  const encodedItems = encodeURIComponent(items);
+  const encodedLocations = encodeURIComponent(locations);
+  const url = `https://west.albion-online-data.com/api/v2/stats/prices/${encodedItems}?locations=${encodedLocations}&qualities=${qualities}`;
+
+  console.log("🟡 Consultando API Albion 2D (west):", url);
+
   try {
-    const items = req.query.items;
-    const locations = req.query.locations;
-    const qualities = req.query.qualities || "1";
-
-    if (!items || !locations) {
-      return res.status(400).json({ error: "Parámetros 'items' y 'locations' son requeridos." });
-    }
-
-    const encodedItems = encodeURIComponent(items);
-    const encodedLocations = encodeURIComponent(locations);
-
-    const url = `https://east.albion-online-data.com/api/v2/stats/prices/${encodedItems}?locations=${encodedLocations}&qualities=${qualities}`;
-
-    console.log("📡 Solicitando precios desde backend2 (servidor EAST)...");
-    console.log("🧩 Ítems: ", items);
-    console.log("🌍 Ciudades: ", locations);
-    console.log("🔗 URL generada: ", url);
-
     const response = await fetch(url);
     const data = await response.json();
 
-    console.log(`✅ Respuesta recibida con ${data.length} registros`);
+    console.log("🟢 Datos recibidos de Albion 2D:", data.length, "ítems.");
     res.json(data);
   } catch (error) {
-    console.error("❌ Error en backend2:", error);
-    res.status(500).json({ error: "Error al obtener precios desde el backend2." });
+    console.error("🔴 Error al obtener datos de Albion 2D API:", error);
+    res.status(500).json({ error: "Error al obtener datos de Albion 2D API" });
   }
 });
 
+app.get("/", (req, res) => {
+  res.send("✅ Backend Albion funcionando con datos del servidor AMÉRICA (west).");
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Backend2 (EAST) corriendo en http://localhost:${PORT}`);
+  console.log(`🚀 Servidor backend2 (Albion América) corriendo en http://localhost:${PORT}`);
 });
