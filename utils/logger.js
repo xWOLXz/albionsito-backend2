@@ -1,9 +1,3 @@
-// utils/logger.js
-
-const logger = {
-  info: (...args) => console.log('[INFO]', ...args),
-  warn: (...args) => console.warn('[WARN]', ...args),
-  error: (...args) => console.error('[ERROR]', ...args),
+module.exports.log = function(...args) {
+  console.log.apply(console, args);
 };
-
-module.exports = logger;
