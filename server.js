@@ -1,31 +1,37 @@
-// albionsito-backend2/server.js
-
 const express = require('express');
 const cors = require('cors');
-const { fetchPrices } = require('./fetchAlbion2D');
-const path = require('path');
 const fs = require('fs');
+const { fetchAlbion2DData } = require('./fetchAlbion2D');
+const logger = require('./utils/logger');
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 
-app.get('/api/prices', async (req, res) => {
-  try {
-    const filePath = path.join(__dirname, 'data', 'prices2d.json');
-    if (fs.existsSync(filePath)) {
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      res.json(data);
-    } else {
-      res.status(404).json({ error: 'Archivo de precios no encontrado' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Error leyendo los datos' });
-  }
+app.get('/', (req, res) => {
+  res.send('Backend2 Albion2D está funcionando correctamente');
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Servidor backend2 Albion2D en puerto ${PORT}`);
-  await fetchPrices(); // Consultar precios al arrancar
+app.get('/api/prices2d', (req, res) => {
+  fs.readFile('./data/prices2d.json', 'utf8', (err, data) => {
+    if (err) {
+      logger.error('Error al leer prices2d.json:', err);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+    res.json(JSON.parse(data));
+  });
+});
+
+// 🔁 Llamada inicial
+fetchAlbion2DData();
+
+// 🔁 Cron job: cada 10 minutos
+setInterval(() => {
+  logger.info('⏰ Actualizando datos desde Albion2D...');
+  fetchAlbion2DData();
+}, 10 * 60 * 1000); // 10 minutos
+
+app.listen(PORT, () => {
+  logger.info(`🚀 Servidor backend2 Albion2D en puerto ${PORT}`);
 });
