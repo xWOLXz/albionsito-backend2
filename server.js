@@ -1,37 +1,41 @@
 const express = require('express');
-const cors = require('cors');
 const fs = require('fs');
-const { fetchAlbion2DData } = require('./fetchAlbion2D');
+const path = require('path');
+const fetchPrices = require('./fetchAlbion2D');
 const logger = require('./utils/logger');
+const cron = require('node-cron');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+const PRICES_PATH = path.join(__dirname, 'data', 'prices2d.json');
+const ITEMS_PATH = path.join(__dirname, 'data', 'items.json');
 
-app.get('/', (req, res) => {
-  res.send('Backend2 Albion2D está funcionando correctamente');
+app.get('/api/prices', (req, res) => {
+  if (fs.existsSync(PRICES_PATH)) {
+    const prices = JSON.parse(fs.readFileSync(PRICES_PATH));
+    res.json(prices);
+  } else {
+    res.status(404).json({ error: 'Archivo de precios no encontrado.' });
+  }
 });
 
-app.get('/api/prices2d', (req, res) => {
-  fs.readFile('./data/prices2d.json', 'utf8', (err, data) => {
-    if (err) {
-      logger.error('Error al leer prices2d.json:', err);
-      return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-    res.json(JSON.parse(data));
-  });
+app.get('/api/items', (req, res) => {
+  if (fs.existsSync(ITEMS_PATH)) {
+    const items = JSON.parse(fs.readFileSync(ITEMS_PATH));
+    res.json(items);
+  } else {
+    res.status(404).json({ error: 'Archivo de items no encontrado.' });
+  }
 });
 
-// 🔁 Llamada inicial
-fetchAlbion2DData();
-
-// 🔁 Cron job: cada 10 minutos
-setInterval(() => {
-  logger.info('⏰ Actualizando datos desde Albion2D...');
-  fetchAlbion2DData();
-}, 10 * 60 * 1000); // 10 minutos
+// Tarea programada: cada 10 minutos
+cron.schedule('*/10 * * * *', async () => {
+  logger.info('⏰ Ejecutando tarea programada de actualización...');
+  await fetchPrices();
+});
 
 app.listen(PORT, () => {
-  logger.info(`🚀 Servidor backend2 Albion2D en puerto ${PORT}`);
+  logger.info(`🚀 Servidor iniciado en el puerto ${PORT}`);
+  fetchPrices(); // Ejecutar una vez al iniciar
 });
