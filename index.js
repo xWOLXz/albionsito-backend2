@@ -1,55 +1,75 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const cors = require('cors');
+import express from "express";
+import axios from "axios";
+import cors from "cors";
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 20000;
 
-// ✅ Permitir solo tu frontend de Vercel
-const corsOptions = {
-  origin: 'https://albionsito.vercel.app',
-  methods: ['GET'],
-  optionsSuccessStatus: 200
-};
+app.use(cors());
 
-app.use(cors(corsOptions));
+function logs(text) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${text}`);
+}
 
-// 🚀 Ruta de búsqueda por nombre
-app.get('/api/item', async (req, res) => {
-  const itemName = req.query.name;
+// ✅ Endpoint principal
+app.get("/api/prices", async (req, res) => {
+  const { itemId, enchantments = "false" } = req.query;
 
-  console.log('[LOG] Petición recibida a /api/item con nombre:', itemName);
-
-  if (!itemName) {
-    console.warn('[WARN] No se proporcionó "name"');
-    return res.status(400).json({ error: 'El parámetro "name" es obligatorio.' });
+  if (!itemId) {
+    logs("❌ No se envió itemId en la consulta");
+    return res.status(400).json({ error: "Falta itemId" });
   }
+
+  logs(`📦 Buscando precios para: ${itemId} (encantamientos: ${enchantments})`);
 
   try {
-    const url = `https://api.nyxsoft.dev/searchItemPrices?query=${encodeURIComponent(itemName)}`;
-    console.log('[LOG] Consultando:', url);
-    
-    const response = await fetch(url);
+    const url = `https://www.albion-online-data.com/api/v2/stats/prices/${itemId}.json`;
+    const { data } = await axios.get(url);
 
-    if (!response.ok) {
-      console.error('[ERROR] La API externa respondió mal:', response.status);
-      return res.status(500).json({ error: 'Error al consultar la API externa.' });
-    }
+    const cities = ["Caerleon", "Fort Sterling", "Thetford", "Lymhurst", "Bridgewatch", "Martlock"];
+    const preciosPorCiudad = {};
 
-    const data = await response.json();
-    console.log('[LOG] Respuesta exitosa con', data.length, 'resultados');
-    res.json(data);
+    cities.forEach((city) => {
+      const datosCiudad = data.filter((entry) => entry.city === city);
+
+      if (datosCiudad.length > 0) {
+        const ordenCompra = datosCiudad
+          .map((e) => ({
+            precio: e.buy_price_max,
+            fecha: e.buy_price_max_date,
+          }))
+          .filter((e) => e.precio > 0)
+          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+          .slice(0, 10);
+
+        const ordenVenta = datosCiudad
+          .map((e) => ({
+            precio: e.sell_price_min,
+            fecha: e.sell_price_min_date,
+          }))
+          .filter((e) => e.precio > 0)
+          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+          .slice(0, 10);
+
+        preciosPorCiudad[city] = {
+          orden_compra: ordenCompra,
+          orden_venta: ordenVenta,
+        };
+      }
+    });
+
+    logs(`✅ Precios obtenidos correctamente para ${itemId}`);
+    res.json({
+      item: itemId,
+      precios: preciosPorCiudad,
+    });
   } catch (error) {
-    console.error('[FATAL ERROR] Falló la búsqueda:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    logs("❌ Error al obtener datos: " + error.message);
+    res.status(500).json({ error: "Error al obtener los precios" });
   }
-});
-
-// ✅ Ruta de prueba para saber si el backend vive
-app.get('/', (req, res) => {
-  res.send('🟢 Backend2 funcionando correctamente.');
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend2 corriendo en http://localhost:${PORT}`);
+  logs(`🟢 Servidor albionsito-backend2 escuchando en http://localhost:${PORT}`);
 });
