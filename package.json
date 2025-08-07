@@ -1,18 +1,14 @@
 {
   "name": "albionsito-backend2",
   "version": "1.0.0",
-  "description": "Backend que calcula top ganancias automáticamente desde la API de Albion",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "node-fetch": "^2.6.7",
     "cors": "^2.8.5",
-    "log-color": "^1.1.2"
+    "node-fetch": "^2.6.9"
   }
 }
