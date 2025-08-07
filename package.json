@@ -1,13 +1,11 @@
 {
   "name": "albionsito-backend2",
   "version": "1.0.0",
-  "description": "Backend que usa Albion 2D API",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.5.0",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "node-cron": "^3.0.2"
   }
