@@ -1,75 +1,48 @@
-import express from "express";
-import axios from "axios";
-import cors from "cors";
+const express = require('express');
+const cors = require('cors');
+const fetch = require('node-fetch');
+const logs = require('log-color');
 
 const app = express();
-const PORT = process.env.PORT || 20000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 
-function logs(text) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${text}`);
-}
+const BASE_URL = 'https://api.albiononline2d.com/api/v2/stats/prices';
 
-// ✅ Endpoint principal
-app.get("/api/prices", async (req, res) => {
-  const { itemId, enchantments = "false" } = req.query;
-
-  if (!itemId) {
-    logs("❌ No se envió itemId en la consulta");
-    return res.status(400).json({ error: "Falta itemId" });
-  }
-
-  logs(`📦 Buscando precios para: ${itemId} (encantamientos: ${enchantments})`);
-
+app.get('/api/market', async (req, res) => {
   try {
-    const url = `https://www.albion-online-data.com/api/v2/stats/prices/${itemId}.json`;
-    const { data } = await axios.get(url);
+    logs.info('[BACKEND 2] ⏳ Obteniendo ítems automáticamente desde albiononline2d.com...');
 
-    const cities = ["Caerleon", "Fort Sterling", "Thetford", "Lymhurst", "Bridgewatch", "Martlock"];
-    const preciosPorCiudad = {};
+    const itemListUrl = 'https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/formatted/items.json';
+    const response = await fetch(itemListUrl);
+    const itemsData = await response.json();
+    const tradableItems = itemsData
+      .filter(i => i.UniqueName && i.Tradable && !i.UniqueName.includes("QUESTITEM"))
+      .map(i => i.UniqueName);
 
-    cities.forEach((city) => {
-      const datosCiudad = data.filter((entry) => entry.city === city);
+    const selectedItems = tradableItems.slice(0, 50); // puedes ajustar
+    const cities = ['Caerleon', 'Fort Sterling', 'Lymhurst', 'Bridgewatch', 'Martlock', 'Thetford', 'Brecilien'];
 
-      if (datosCiudad.length > 0) {
-        const ordenCompra = datosCiudad
-          .map((e) => ({
-            precio: e.buy_price_max,
-            fecha: e.buy_price_max_date,
-          }))
-          .filter((e) => e.precio > 0)
-          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-          .slice(0, 10);
+    const allRequests = [];
 
-        const ordenVenta = datosCiudad
-          .map((e) => ({
-            precio: e.sell_price_min,
-            fecha: e.sell_price_min_date,
-          }))
-          .filter((e) => e.precio > 0)
-          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-          .slice(0, 10);
+    for (let i = 0; i < selectedItems.length; i += 10) {
+      const group = selectedItems.slice(i, i + 10).join(',');
+      const url = `${BASE_URL}/${group}?locations=${cities.join(',')}`;
+      allRequests.push(fetch(url).then(res => res.json()));
+    }
 
-        preciosPorCiudad[city] = {
-          orden_compra: ordenCompra,
-          orden_venta: ordenVenta,
-        };
-      }
-    });
+    const allResults = await Promise.all(allRequests);
+    const flatResults = allResults.flat().filter(entry => entry.sell_price_min > 0 || entry.buy_price_max > 0);
 
-    logs(`✅ Precios obtenidos correctamente para ${itemId}`);
-    res.json({
-      item: itemId,
-      precios: preciosPorCiudad,
-    });
+    logs.success(`[BACKEND 2] ✅ Datos recibidos correctamente (${flatResults.length} registros)`);
+    res.json(flatResults);
   } catch (error) {
-    logs("❌ Error al obtener datos: " + error.message);
-    res.status(500).json({ error: "Error al obtener los precios" });
+    logs.error(`[BACKEND 2] ❌ Error obteniendo datos: ${error}`);
+    res.status(500).json({ error: 'Error al obtener datos del mercado.' });
   }
 });
 
 app.listen(PORT, () => {
-  logs(`🟢 Servidor albionsito-backend2 escuchando en http://localhost:${PORT}`);
+  logs.done(`🟢 albionsito-backend2 escuchando en http://localhost:${PORT}`);
 });
