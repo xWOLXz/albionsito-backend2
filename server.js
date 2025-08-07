@@ -1,35 +1,31 @@
+// albionsito-backend2/server.js
+
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
+const { fetchPrices } = require('./fetchAlbion2D');
 const path = require('path');
-const cron = require('node-cron');
-const { fetchAlbion2D } = require('./fetchAlbion2D');
-const { log } = require('./utils/logger');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 
 app.use(cors());
 
-const PRICES_PATH = path.join(__dirname, 'data', 'prices2d.json');
-
-app.get('/api/data', (req, res) => {
+app.get('/api/prices', async (req, res) => {
   try {
-    const data = JSON.parse(fs.readFileSync(PRICES_PATH, 'utf8'));
-    res.json(data);
-  } catch (error) {
-    log(`❌ Error al leer los datos: ${error.message}`);
-    res.status(500).json({ error: 'Error al leer los datos' });
+    const filePath = path.join(__dirname, 'data', 'prices2d.json');
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      res.json(data);
+    } else {
+      res.status(404).json({ error: 'Archivo de precios no encontrado' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Error leyendo los datos' });
   }
 });
 
-fetchAlbion2D();
-
-cron.schedule('*/10 * * * *', () => {
-  log('🔁 Actualización programada (Albion2D)...');
-  fetchAlbion2D();
-});
-
-app.listen(PORT, () => {
-  log(`🚀 Servidor backend2 Albion2D en puerto ${PORT}`);
+app.listen(PORT, async () => {
+  console.log(`🚀 Servidor backend2 Albion2D en puerto ${PORT}`);
+  await fetchPrices(); // Consultar precios al arrancar
 });
