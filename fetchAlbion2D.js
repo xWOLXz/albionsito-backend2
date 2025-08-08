@@ -15,9 +15,9 @@ const CITIES = [
   "Brecilien"
 ];
 
-// Solo usar el endpoint válido para evitar 404s
-const SOURCES = [
-  id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=1`
+// Ahora SOURCES recibe calidad dinámica
+const SOURCES = (quality) => [
+  id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=${quality}`
 ];
 
 /**
@@ -107,14 +107,16 @@ function adaptDataForFrontend(data) {
 }
 
 /**
- * Consulta la fuente y combina resultados
+ * Consulta la fuente y combina resultados, con calidad dinámica
  */
-export async function fetchPricesMega(itemId) {
-  logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId}`);
+export async function fetchPricesMega(itemId, quality = 1) {
+  logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId} con calidad ${quality}`);
 
   let finalData = {};
 
-  for (const src of SOURCES) {
+  const sources = SOURCES(quality);
+
+  for (const src of sources) {
     try {
       const url = src(itemId);
       const res = await fetch(url);
@@ -155,9 +157,9 @@ export async function fetchPricesMega(itemId) {
 /**
  * Guarda en cache local
  */
-export async function updateCache(itemId) {
-  const data = await fetchPricesMega(itemId);
+export async function updateCache(itemId, quality = 1) {
+  const data = await fetchPricesMega(itemId, quality);
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  logger.info(`[MegaRecopilador] Cache actualizada para ${itemId}`);
+  logger.info(`[MegaRecopilador] Cache actualizada para ${itemId} calidad ${quality}`);
   return data;
 }
