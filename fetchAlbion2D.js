@@ -15,9 +15,10 @@ const CITIES = [
   "Brecilien"
 ];
 
-// Solo endpoint válido y con quality dinámico
-const SOURCE = (id, quality) =>
-  `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=${quality}`;
+// Solo usar el endpoint válido para evitar 404s
+const SOURCES = [
+  id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=1`
+];
 
 /**
  * Normaliza el formato para que siempre sea igual.
@@ -63,7 +64,7 @@ function normalizeData(apiData) {
     }
   }
 
-  // Limitar a últimos 5 registros
+  // Limitar a últimos 5
   for (const city of Object.keys(result)) {
     result[city].sell = result[city].sell
       .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -78,33 +79,85 @@ function normalizeData(apiData) {
 }
 
 /**
- * Consulta la fuente y devuelve datos normalizados
+ * Convierte datos normalizados al formato que espera el frontend:
+ * {
+ *   ciudad: {
+ *     orden_venta: [{ precio, fecha }],
+ *     orden_compra: [{ precio, fecha }],
+ *     actualizado: string
+ *   }
+ * }
  */
-export async function fetchPricesMega(itemId, quality = 1) {
-  logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId} con calidad ${quality}`);
-
-  try {
-    const url = SOURCE(itemId, quality);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-
-    const normalized = normalizeData(json);
-
-    return { updated: new Date().toISOString(), prices: normalized };
-
-  } catch (err) {
-    logger.error(`[MegaRecopilador] Error en fuente: ${err.message}`);
-    return { updated: new Date().toISOString(), prices: {} };
+function adaptDataForFrontend(data) {
+  const adapted = {};
+  for (const city in data) {
+    adapted[city] = {
+      orden_venta: data[city].sell.map(o => ({
+        precio: o.price,
+        fecha: o.date
+      })),
+      orden_compra: data[city].buy.map(o => ({
+        precio: o.price,
+        fecha: o.date
+      })),
+      actualizado: data[city].updated
+    };
   }
+  return adapted;
+}
+
+/**
+ * Consulta la fuente y combina resultados
+ */
+export async function fetchPricesMega(itemId) {
+  logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId}`);
+
+  let finalData = {};
+
+  for (const src of SOURCES) {
+    try {
+      const url = src(itemId);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      const normalized = normalizeData(json);
+
+      // Merge con datos existentes
+      for (const [city, data] of Object.entries(normalized)) {
+        if (!finalData[city]) {
+          finalData[city] = data;
+        } else {
+          finalData[city].sell = [...finalData[city].sell, ...data.sell]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 5);
+
+          finalData[city].buy = [...finalData[city].buy, ...data.buy]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 5);
+
+          if (!finalData[city].updated || new Date(data.updated) > new Date(finalData[city].updated)) {
+            finalData[city].updated = data.updated;
+          }
+        }
+      }
+
+    } catch (err) {
+      logger.error(`[MegaRecopilador] Error en fuente: ${err.message}`);
+    }
+  }
+
+  const adaptedData = adaptDataForFrontend(finalData);
+
+  return { updated: new Date().toISOString(), precios: adaptedData };
 }
 
 /**
  * Guarda en cache local
  */
-export async function updateCache(itemId, quality = 1) {
-  const data = await fetchPricesMega(itemId, quality);
+export async function updateCache(itemId) {
+  const data = await fetchPricesMega(itemId);
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  logger.info(`[MegaRecopilador] Cache actualizada para ${itemId} calidad ${quality}`);
+  logger.info(`[MegaRecopilador] Cache actualizada para ${itemId}`);
   return data;
 }
