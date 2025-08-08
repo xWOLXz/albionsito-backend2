@@ -1,44 +1,89 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
-const { refreshCache, OUTPUT } = require('./fetchAlbion2D');
-const { log } = require('./utils/logger');
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+import logger from "./utils/logger.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 4002;
-
 app.use(cors());
 
-const ITEMS_PATH = path.join(__dirname, 'data', 'items.json');
+const DATA_FILE = path.join(__dirname, "data", "prices2d.json");
+const CITIES = ["Caerleon", "Bridgewatch", "Lymhurst", "Martlock", "Thetford", "Fort Sterling", "Brecilien"];
 
-app.get('/', (req, res) => {
-  res.send('✅ Backend2 Albion Online API está funcionando');
+let cache = {};
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    cache = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch {
+    cache = {};
+  }
+}
+
+async function fetchAlbion2DPrices(itemId, quality) {
+  const url = `https://west.albion-online-data.com/api/v2/stats/prices/${encodeURIComponent(itemId)}.json?locations=${CITIES.join(",")}&qualities=${quality}`;
+  logger.log(`[Backend2] GET ${url}`);
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Error API Albion2D: ${res.statusText}`);
+
+  const data = await res.json();
+  const precios = {};
+
+  data.forEach(entry => {
+    if (!precios[entry.city]) {
+      precios[entry.city] = {
+        orden_venta: [],
+        orden_compra: [],
+        updated: entry.timestamp
+      };
+    }
+    if (entry.sell_price_min > 0) {
+      precios[entry.city].orden_venta.push({
+        precio: entry.sell_price_min,
+        fecha: entry.sell_price_min_date
+      });
+    }
+    if (entry.buy_price_max > 0) {
+      precios[entry.city].orden_compra.push({
+        precio: entry.buy_price_max,
+        fecha: entry.buy_price_max_date
+      });
+    }
+  });
+
+  return precios;
+}
+
+// Ruta para inicializar cache
+app.get("/api/init", async (req, res) => {
+  logger.log("[Backend2] Inicializando cache...");
+  cache = {};
+  fs.writeFileSync(DATA_FILE, JSON.stringify(cache, null, 2));
+  res.json({ status: "ok" });
 });
 
-app.get('/api/update', async (req, res) => {
+// Ruta principal de precios
+app.get("/api/prices", async (req, res) => {
+  const { itemId, quality = 1 } = req.query;
+  if (!itemId) return res.status(400).json({ error: "itemId requerido" });
+
   try {
-    const itemsRaw = fs.readFileSync(ITEMS_PATH, 'utf-8');
-    const items = JSON.parse(itemsRaw);
-    await refreshCache(items);
-    res.json({ ok: true, updated: new Date().toISOString() });
+    const precios = await fetchAlbion2DPrices(itemId, quality);
+
+    cache[itemId] = { precios, actualizado: new Date().toISOString() };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(cache, null, 2));
+
+    res.json({ precios });
   } catch (err) {
-    log('[Backend2] Error actualizando precios:', err.message || err);
-    res.status(500).json({ ok: false, error: err.message });
+    logger.error("[Backend2] Error obteniendo precios:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/prices', (req, res) => {
-  try {
-    const data = fs.readFileSync(OUTPUT, 'utf-8');
-    const json = JSON.parse(data);
-    res.json(json);
-  } catch (err) {
-    log('[Backend2] Error leyendo precios:', err.message || err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  log(`🌐 Backend2 escuchando en http://localhost:${PORT}`);
+  logger.log(`🌐 Backend2 escuchando en puerto ${PORT}`);
 });
