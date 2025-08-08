@@ -11,11 +11,14 @@ app.use(cors());
 const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
 
 app.get('/api/prices', async (req, res) => {
-  const { itemId } = req.query;
+  const { itemId, quality } = req.query;
   if (!itemId) return res.status(400).json({ error: 'Missing itemId' });
 
+  // Convertir quality a número, default 1
+  const qualityNum = parseInt(quality) || 1;
+
   try {
-    const data = await updateCache(itemId);
+    const data = await updateCache(itemId, qualityNum);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
