@@ -1,126 +1,42 @@
-// fetchAlbion2D.js
-import fetch from 'node-fetch';
-import logger from './utils/logger.js';
+const fs = require('fs');
+const axios = require('axios');
+const path = require('path');
+const logger = require('./utils/logger');
 
-const CITIES = [
-  "Caerleon",
-  "Bridgewatch",
-  "Lymhurst",
-  "Martlock",
-  "Thetford",
-  "Fort Sterling",
-  "Brecilien"
-];
+const CITIES = ['Bridgewatch', 'Martlock', 'Thetford', 'Fort Sterling', 'Lymhurst'];
+const ITEM_FILE_PATH = path.join(__dirname, 'data', 'items.json');
+const PRICE_FILE_PATH = path.join(__dirname, 'data', 'prices2d.json');
 
-const SOURCES = (quality) => [
-  id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=${quality}`
-];
+async function fetchPrices() {
+  try {
+    const itemsData = fs.readFileSync(ITEM_FILE_PATH, 'utf-8');
+    const items = JSON.parse(itemsData);
 
-function normalizeData(apiData) {
-  const result = {};
-  for (const entry of apiData) {
-    const city = entry.city || entry.location;
-    if (!CITIES.includes(city)) continue;
+    const requests = [];
 
-    if (!result[city]) {
-      result[city] = { sell: [], buy: [], updated: null };
-    }
-
-    if (entry.sell_price_min || entry.sell_price) {
-      result[city].sell.push({
-        price: entry.sell_price_min || entry.sell_price,
-        date: entry.sell_price_min_date || entry.date || null
-      });
-    }
-    if (entry.buy_price_max || entry.buy_price) {
-      result[city].buy.push({
-        price: entry.buy_price_max || entry.buy_price,
-        date: entry.buy_price_max_date || entry.date || null
-      });
-    }
-
-    const dateCandidates = [
-      entry.sell_price_min_date,
-      entry.buy_price_max_date,
-      entry.date
-    ].filter(Boolean);
-
-    for (const d of dateCandidates) {
-      if (!result[city].updated || new Date(d) > new Date(result[city].updated)) {
-        result[city].updated = d;
+    for (const item of items) {
+      for (const city of CITIES) {
+        const url = `https://west.albion-online-data.com/api/v2/stats/prices/${item.id}.json?locations=${city}&qualities=1`;
+        requests.push(
+          axios.get(url).then(res => res.data).catch(err => {
+            logger.error(`Error con ${item.id} en ${city}: ${err.message}`);
+            return [];
+          })
+        );
       }
     }
-  }
 
-  for (const city of Object.keys(result)) {
-    result[city].sell = result[city].sell
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 5);
-    result[city].buy = result[city].buy
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 5);
-  }
+    const responses = await Promise.allSettled(requests);
 
-  return result;
+    const allPrices = responses
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value);
+
+    fs.writeFileSync(PRICE_FILE_PATH, JSON.stringify(allPrices, null, 2));
+    logger.info(`✅ Precios actualizados (${allPrices.length} registros).`);
+  } catch (error) {
+    logger.error(`❌ Error al obtener precios: ${error.message}`);
+  }
 }
 
-function adaptDataForFrontend(data) {
-  const adapted = {};
-  for (const city in data) {
-    adapted[city] = {
-      orden_venta: data[city].sell.map(o => ({
-        precio: o.price,
-        fecha: o.date
-      })),
-      orden_compra: data[city].buy.map(o => ({
-        precio: o.price,
-        fecha: o.date
-      })),
-      actualizado: data[city].updated
-    };
-  }
-  return adapted;
-}
-
-export async function fetchPricesMega(itemId, quality = 1) {
-  logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId} con calidad ${quality}`);
-
-  let finalData = {};
-
-  const sources = SOURCES(quality);
-
-  for (const src of sources) {
-    try {
-      const url = src(itemId);
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-
-      const normalized = normalizeData(json);
-
-      for (const [city, data] of Object.entries(normalized)) {
-        if (!finalData[city]) {
-          finalData[city] = data;
-        } else {
-          finalData[city].sell = [...finalData[city].sell, ...data.sell]
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 5);
-          finalData[city].buy = [...finalData[city].buy, ...data.buy]
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 5);
-
-          if (!finalData[city].updated || new Date(data.updated) > new Date(finalData[city].updated)) {
-            finalData[city].updated = data.updated;
-          }
-        }
-      }
-
-    } catch (err) {
-      logger.error(`[MegaRecopilador] Error en fuente: ${err.message}`);
-    }
-  }
-
-  const adaptedData = adaptDataForFrontend(finalData);
-
-  return { updated: new Date().toISOString(), precios: adaptedData };
-}
+module.exports = fetchPrices;
