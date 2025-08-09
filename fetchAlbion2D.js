@@ -1,9 +1,5 @@
 import fetch from 'node-fetch';
-import fs from 'fs';
-import path from 'path';
 import logger from './utils/logger.js';
-
-const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
 
 const CITIES = [
   "Caerleon",
@@ -15,14 +11,12 @@ const CITIES = [
   "Brecilien"
 ];
 
-// Ahora SOURCES recibe calidad dinámica
+// Función que genera las URLs de la API externa con calidad dinámica
 const SOURCES = (quality) => [
   id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=${quality}`
 ];
 
-/**
- * Normaliza el formato para que siempre sea igual.
- */
+// Normaliza el formato de la API externa
 function normalizeData(apiData) {
   const result = {};
 
@@ -64,7 +58,7 @@ function normalizeData(apiData) {
     }
   }
 
-  // Limitar a últimos 5
+  // Limitar a últimos 5 registros
   for (const city of Object.keys(result)) {
     result[city].sell = result[city].sell
       .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -78,16 +72,7 @@ function normalizeData(apiData) {
   return result;
 }
 
-/**
- * Convierte datos normalizados al formato que espera el frontend:
- * {
- *   ciudad: {
- *     orden_venta: [{ precio, fecha }],
- *     orden_compra: [{ precio, fecha }],
- *     actualizado: string
- *   }
- * }
- */
+// Adapta el formato para frontend (orden_venta, orden_compra, actualizado)
 function adaptDataForFrontend(data) {
   const adapted = {};
   for (const city in data) {
@@ -106,9 +91,7 @@ function adaptDataForFrontend(data) {
   return adapted;
 }
 
-/**
- * Consulta la fuente y combina resultados, con calidad dinámica
- */
+// Función principal que obtiene datos de la API externa y normaliza
 export async function fetchPricesMega(itemId, quality = 1) {
   logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId} con calidad ${quality}`);
 
@@ -152,14 +135,4 @@ export async function fetchPricesMega(itemId, quality = 1) {
   const adaptedData = adaptDataForFrontend(finalData);
 
   return { updated: new Date().toISOString(), precios: adaptedData };
-}
-
-/**
- * Guarda en cache local
- */
-export async function updateCache(itemId, quality = 1) {
-  const data = await fetchPricesMega(itemId, quality);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  logger.info(`[MegaRecopilador] Cache actualizada para ${itemId} calidad ${quality}`);
-  return data;
 }
