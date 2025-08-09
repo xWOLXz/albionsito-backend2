@@ -1,34 +1,48 @@
-import express from 'express';
-import cors from 'cors';
-import { updateCache } from './fetchAlbion2D.js';
-import path from 'path';
-import logger from './utils/logger.js';
+const express = require('express');
+const fs = require('fs');
+const cors = require('cors');
+const fetch = require('node-fetch');
+const logger = require('./utils/logger');
+const mergePrices = require('./mergePrices');
 
 const app = express();
 app.use(cors());
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
+const PORT = process.env.PORT || 3002;
+const BACKEND1_URL = 'http://localhost:3001/api/prices';
+
+// Leer cache local de backend2
+function getLocalPrices() {
+    const rawData = fs.readFileSync('./data/prices2d.json', 'utf8');
+    return JSON.parse(rawData);
+}
 
 app.get('/api/prices', async (req, res) => {
-  const { itemId, quality = '1' } = req.query;
-  if (!itemId) return res.status(400).json({ error: 'Missing itemId' });
+    try {
+        logger.info('Obteniendo precios desde backend1 y backend2...');
 
-  try {
-    const qualityNum = parseInt(quality);
-    if (isNaN(qualityNum) || qualityNum < 1 || qualityNum > 5) {
-      return res.status(400).json({ error: 'Invalid quality parameter' });
+        // 1️⃣ Backend2 cache local
+        const backend2Data = getLocalPrices();
+
+        // 2️⃣ Backend1 API
+        let backend1Data = [];
+        try {
+            const resp1 = await fetch(BACKEND1_URL);
+            backend1Data = await resp1.json();
+        } catch (err) {
+            logger.error('No se pudo obtener datos de backend1:', err.message);
+        }
+
+        // 3️⃣ Combinar
+        const mergedData = mergePrices(backend1Data, backend2Data);
+
+        res.json(mergedData);
+    } catch (err) {
+        logger.error('Error al obtener precios combinados:', err.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
-    const data = await updateCache(itemId, qualityNum);
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
-app.get('/api/init', (req, res) => {
-  res.json({ status: 'ok', msg: 'MegaRecopilador Backend2 listo' });
-});
-
-app.listen(10000, () => {
-  logger.info('🌐 MegaRecopilador Backend2 escuchando en puerto 10000');
+app.listen(PORT, () => {
+    logger.info(`Backend2 combinado escuchando en http://localhost:${PORT}`);
 });
