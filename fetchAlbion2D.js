@@ -1,3 +1,4 @@
+// fetchAlbion2D.js
 import fetch from 'node-fetch';
 import logger from './utils/logger.js';
 
@@ -11,15 +12,12 @@ const CITIES = [
   "Brecilien"
 ];
 
-// Función que genera las URLs de la API externa con calidad dinámica
 const SOURCES = (quality) => [
   id => `https://west.albion-online-data.com/api/v2/stats/prices/${id}.json?locations=${CITIES.join(',')}&qualities=${quality}`
 ];
 
-// Normaliza el formato de la API externa
 function normalizeData(apiData) {
   const result = {};
-
   for (const entry of apiData) {
     const city = entry.city || entry.location;
     if (!CITIES.includes(city)) continue;
@@ -28,15 +26,12 @@ function normalizeData(apiData) {
       result[city] = { sell: [], buy: [], updated: null };
     }
 
-    // Ventas
     if (entry.sell_price_min || entry.sell_price) {
       result[city].sell.push({
         price: entry.sell_price_min || entry.sell_price,
         date: entry.sell_price_min_date || entry.date || null
       });
     }
-
-    // Compras
     if (entry.buy_price_max || entry.buy_price) {
       result[city].buy.push({
         price: entry.buy_price_max || entry.buy_price,
@@ -44,7 +39,6 @@ function normalizeData(apiData) {
       });
     }
 
-    // Fecha más reciente
     const dateCandidates = [
       entry.sell_price_min_date,
       entry.buy_price_max_date,
@@ -58,12 +52,10 @@ function normalizeData(apiData) {
     }
   }
 
-  // Limitar a últimos 5 registros
   for (const city of Object.keys(result)) {
     result[city].sell = result[city].sell
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
-
     result[city].buy = result[city].buy
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
@@ -72,7 +64,6 @@ function normalizeData(apiData) {
   return result;
 }
 
-// Adapta el formato para frontend (orden_venta, orden_compra, actualizado)
 function adaptDataForFrontend(data) {
   const adapted = {};
   for (const city in data) {
@@ -91,7 +82,6 @@ function adaptDataForFrontend(data) {
   return adapted;
 }
 
-// Función principal que obtiene datos de la API externa y normaliza
 export async function fetchPricesMega(itemId, quality = 1) {
   logger.info(`[MegaRecopilador] Obteniendo precios para ${itemId} con calidad ${quality}`);
 
@@ -108,7 +98,6 @@ export async function fetchPricesMega(itemId, quality = 1) {
 
       const normalized = normalizeData(json);
 
-      // Merge con datos existentes
       for (const [city, data] of Object.entries(normalized)) {
         if (!finalData[city]) {
           finalData[city] = data;
@@ -116,7 +105,6 @@ export async function fetchPricesMega(itemId, quality = 1) {
           finalData[city].sell = [...finalData[city].sell, ...data.sell]
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, 5);
-
           finalData[city].buy = [...finalData[city].buy, ...data.buy]
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, 5);
