@@ -1,9 +1,15 @@
 // server.js
 import express from 'express';
 import fetch from 'node-fetch';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// después de crear app con express()
+app.use(cors({
+  origin: 'https://albionsito.vercel.app' // o '*' para permitir todos (no recomendado en producción)
+}));
 
 // Función para fusionar precios (usa la tuya con ligeras mejoras para evitar errores)
 function mergePrices(data1, data2) {
