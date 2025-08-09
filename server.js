@@ -1,41 +1,44 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const fetchPrices = require('./fetchAlbion2D');
-const logger = require('./utils/logger');
-const cron = require('node-cron');
+const cors = require('cors');
+const { refreshCache, OUTPUT } = require('./fetchAlbion2D');
+const { log } = require('./utils/logger');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4002;
 
-const PRICES_PATH = path.join(__dirname, 'data', 'prices2d.json');
+app.use(cors());
+
 const ITEMS_PATH = path.join(__dirname, 'data', 'items.json');
 
+app.get('/', (req, res) => {
+  res.send('✅ Backend2 Albion Online API está funcionando');
+});
+
+app.get('/api/update', async (req, res) => {
+  try {
+    const itemsRaw = fs.readFileSync(ITEMS_PATH, 'utf-8');
+    const items = JSON.parse(itemsRaw);
+    await refreshCache(items);
+    res.json({ ok: true, updated: new Date().toISOString() });
+  } catch (err) {
+    log('[Backend2] Error actualizando precios:', err.message || err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/prices', (req, res) => {
-  if (fs.existsSync(PRICES_PATH)) {
-    const prices = JSON.parse(fs.readFileSync(PRICES_PATH));
-    res.json(prices);
-  } else {
-    res.status(404).json({ error: 'Archivo de precios no encontrado.' });
+  try {
+    const data = fs.readFileSync(OUTPUT, 'utf-8');
+    const json = JSON.parse(data);
+    res.json(json);
+  } catch (err) {
+    log('[Backend2] Error leyendo precios:', err.message || err);
+    res.status(500).json({ ok: false, error: err.message });
   }
-});
-
-app.get('/api/items', (req, res) => {
-  if (fs.existsSync(ITEMS_PATH)) {
-    const items = JSON.parse(fs.readFileSync(ITEMS_PATH));
-    res.json(items);
-  } else {
-    res.status(404).json({ error: 'Archivo de items no encontrado.' });
-  }
-});
-
-// Tarea programada: cada 10 minutos
-cron.schedule('*/10 * * * *', async () => {
-  logger.info('⏰ Ejecutando tarea programada de actualización...');
-  await fetchPrices();
 });
 
 app.listen(PORT, () => {
-  logger.info(`🚀 Servidor iniciado en el puerto ${PORT}`);
-  fetchPrices(); // Ejecutar una vez al iniciar
+  log(`🌐 Backend2 escuchando en http://localhost:${PORT}`);
 });
