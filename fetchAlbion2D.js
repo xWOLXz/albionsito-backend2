@@ -1,42 +1,38 @@
-const fs = require('fs');
 const axios = require('axios');
+const fs = require('fs');
 const path = require('path');
-const logger = require('./utils/logger');
+const { log } = require('./utils/logger');
 
-const CITIES = ['Bridgewatch', 'Martlock', 'Thetford', 'Fort Sterling', 'Lymhurst'];
-const ITEM_FILE_PATH = path.join(__dirname, 'data', 'items.json');
-const PRICE_FILE_PATH = path.join(__dirname, 'data', 'prices2d.json');
+const OUTPUT = path.join(__dirname, 'data', 'prices2d.json');
+const LOCATIONS = ['Caerleon','Bridgewatch','Lymhurst','Martlock','Thetford','Fort Sterling','Brecilien'];
 
-async function fetchPrices() {
+async function fetchFromAlternative(itemId, quality = 1) {
   try {
-    const itemsData = fs.readFileSync(ITEM_FILE_PATH, 'utf-8');
-    const items = JSON.parse(itemsData);
-
-    const requests = [];
-
-    for (const item of items) {
-      for (const city of CITIES) {
-        const url = `https://west.albion-online-data.com/api/v2/stats/prices/${item.id}.json?locations=${city}&qualities=1`;
-        requests.push(
-          axios.get(url).then(res => res.data).catch(err => {
-            logger.error(`Error con ${item.id} en ${city}: ${err.message}`);
-            return [];
-          })
-        );
-      }
-    }
-
-    const responses = await Promise.allSettled(requests);
-
-    const allPrices = responses
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => r.value);
-
-    fs.writeFileSync(PRICE_FILE_PATH, JSON.stringify(allPrices, null, 2));
-    logger.info(`✅ Precios actualizados (${allPrices.length} registros).`);
-  } catch (error) {
-    logger.error(`❌ Error al obtener precios: ${error.message}`);
+    const url = `https://west.albion-online-data.com/api/v2/stats/market/${encodeURIComponent(itemId)}.json?locations=${LOCATIONS.join(',')}&qualities=${quality}`;
+    log(`[Backend2] GET ${url}`);
+    const r = await axios.get(url);
+    return r.data;
+  } catch (err) {
+    log('[Backend2] Error fetchFromAlternative', err.message || err);
+    return [];
   }
 }
 
-module.exports = fetchPrices;
+async function refreshCache(items = []) {
+  try {
+    log('[Backend2] refreshCache start');
+    const result = { updated: new Date().toISOString(), items: {} };
+
+    for (const item of items) {
+      const prices = await fetchFromAlternative(item.id);
+      result.items[item.id] = prices;
+    }
+
+    fs.writeFileSync(OUTPUT, JSON.stringify(result, null, 2));
+    log('[Backend2] refreshCache saved to', OUTPUT);
+  } catch (err) {
+    log('[Backend2] refreshCache error', err);
+  }
+}
+
+module.exports = { fetchFromAlternative, refreshCache, OUTPUT };
