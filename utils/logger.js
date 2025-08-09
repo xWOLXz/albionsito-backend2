@@ -1,4 +1,5 @@
+// utils/logger.js
 export default {
-  info: (msg) => console.log(`[INFO] ${msg}`),
-  error: (msg) => console.error(`[ERROR] ${msg}`)
+  info: (...args) => console.log('[INFO]', ...args),
+  error: (...args) => console.error('[ERROR]', ...args),
 };
