@@ -1,44 +1,27 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
-const { refreshCache, OUTPUT } = require('./fetchAlbion2D');
-const { log } = require('./utils/logger');
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { info, error } from './utils/logger.js';
+import { fetchPrices } from './fetchAlbion2D.js';
 
 const app = express();
-const PORT = process.env.PORT || 4002;
-
 app.use(cors());
 
-const ITEMS_PATH = path.join(__dirname, 'data', 'items.json');
+const PORT = process.env.PORT || 10000;
 
-app.get('/', (req, res) => {
-  res.send('✅ Backend2 Albion Online API está funcionando');
-});
+app.get('/api/init', (req, res) => res.json({ status: 'ok', msg: 'Backend2 listo' }));
 
-app.get('/api/update', async (req, res) => {
+app.get('/api/prices', async (req, res) => {
   try {
-    const itemsRaw = fs.readFileSync(ITEMS_PATH, 'utf-8');
-    const items = JSON.parse(itemsRaw);
-    await refreshCache(items);
-    res.json({ ok: true, updated: new Date().toISOString() });
+    const { itemId, quality = '1' } = req.query;
+    if (!itemId) return res.status(400).json({ error: 'Missing itemId' });
+    const q = Math.max(1, Math.min(5, Number(quality) || 1));
+    const data = await fetchPrices(itemId, q);
+    res.json(data);
   } catch (err) {
-    log('[Backend2] Error actualizando precios:', err.message || err);
-    res.status(500).json({ ok: false, error: err.message });
+    error(err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/prices', (req, res) => {
-  try {
-    const data = fs.readFileSync(OUTPUT, 'utf-8');
-    const json = JSON.parse(data);
-    res.json(json);
-  } catch (err) {
-    log('[Backend2] Error leyendo precios:', err.message || err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.listen(PORT, () => {
-  log(`🌐 Backend2 escuchando en http://localhost:${PORT}`);
-});
+app.listen(PORT, () => info(`Backend2 escuchando en http://localhost:${PORT}`));
