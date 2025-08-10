@@ -1,5 +1,9 @@
-export const error = (msg) => console.error(msg);
+// utils/logger.js
 
-module.exports.log = function(...args) {
-  console.log.apply(console, args);
+export const info = (...args) => {
+  console.log('[INFO]', ...args);
+};
+
+export const error = (...args) => {
+  console.error('[ERROR]', ...args);
 };
