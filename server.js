@@ -7,7 +7,7 @@ import { fetchPrices } from './fetchAlbion2D.js';
 const app = express();
 app.use(cors());
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3002;
 
 app.get('/api/init', (req, res) => res.json({ status: 'ok', msg: 'Backend2 listo' }));
 
