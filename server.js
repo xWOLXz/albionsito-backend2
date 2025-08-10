@@ -1,6 +1,6 @@
+// albionsito-backend2/server.js
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
 import { info, error } from './utils/logger.js';
 import { fetchPrices } from './fetchAlbion2D.js';
 
