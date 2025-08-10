@@ -1,12 +1,14 @@
+// albionsito-backend2/fetchAlbion2D.js
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { info, error } from './utils/logger.js';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
+const LOCATIONS = ['Caerleon', 'Bridgewatch', 'Lymhurst', 'Martlock', 'Thetford', 'Fort Sterling', 'Brecilien'];
 
-// Para Albion 2D, la URL no usa quality ni locations (en este ejemplo)
-const API_URL = (id) => `https://albion2d.com/api/v1/stats/prices/${encodeURIComponent(id)}.json`;
+const API_URL = (itemId, quality = 1) =>
+  `https://www.albion-online-data.com/api/v2/stats/prices/${encodeURIComponent(itemId)}.json?locations=${LOCATIONS.join(',')}&qualities=${quality}`;
 
 function normalizeApi(apiData) {
   const result = {};
@@ -34,8 +36,12 @@ function normalizeApi(apiData) {
   }
 
   for (const city of Object.keys(result)) {
-    result[city].sell = result[city].sell.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
-    result[city].buy = result[city].buy.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    result[city].sell = result[city].sell
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 10);
+    result[city].buy = result[city].buy
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 10);
   }
 
   return result;
@@ -44,7 +50,7 @@ function normalizeApi(apiData) {
 export async function fetchPrices(itemId, quality = 1) {
   try {
     info(`Fetching API2 ${itemId} q=${quality}`);
-    const url = API_URL(itemId);
+    const url = API_URL(itemId, quality);
     console.log(`Fetch URL: ${url}`);
 
     const r = await fetch(url);
@@ -64,7 +70,6 @@ export async function fetchPrices(itemId, quality = 1) {
     }
 
     return { updated: new Date().toISOString(), precios: adapted };
-
   } catch (err) {
     error(err.message);
     // fallback a cache local
