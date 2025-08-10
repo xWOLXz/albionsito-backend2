@@ -5,15 +5,15 @@ import { info, error } from './utils/logger.js';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
 
-const API_URL = (id, q) => `https://www.checkprices.net/api/v1/items/${encodeURIComponent(id)}/prices`;
+// Para Albion 2D, la URL no usa quality ni locations (en este ejemplo)
+const API_URL = (id) => `https://albion2d.com/api/v1/stats/prices/${encodeURIComponent(id)}.json`;
 
 function normalizeApi(apiData) {
   const result = {};
+  if (!apiData || !Array.isArray(apiData)) return result;
 
-  if (!apiData || !apiData.items) return result;
-
-  for (const entry of apiData.items) {
-    const city = entry.city;
+  for (const entry of apiData) {
+    const city = entry.city || entry.location;
     if (!city) continue;
 
     if (!result[city]) result[city] = { sell: [], buy: [], updated: null };
@@ -34,8 +34,8 @@ function normalizeApi(apiData) {
   }
 
   for (const city of Object.keys(result)) {
-    result[city].sell = result[city].sell.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
-    result[city].buy = result[city].buy.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    result[city].sell = result[city].sell.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    result[city].buy = result[city].buy.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
   }
 
   return result;
@@ -44,10 +44,15 @@ function normalizeApi(apiData) {
 export async function fetchPrices(itemId, quality = 1) {
   try {
     info(`Fetching API2 ${itemId} q=${quality}`);
-    const url = API_URL(itemId, quality);
+    const url = API_URL(itemId);
+    console.log(`Fetch URL: ${url}`);
+
     const r = await fetch(url);
     if (!r.ok) throw new Error(`API status ${r.status}`);
+
     const json = await r.json();
+    console.log('API response:', json);
+
     const norm = normalizeApi(json);
     const adapted = {};
     for (const [city, val] of Object.entries(norm)) {
@@ -57,7 +62,9 @@ export async function fetchPrices(itemId, quality = 1) {
         actualizado: val.updated
       };
     }
+
     return { updated: new Date().toISOString(), precios: adapted };
+
   } catch (err) {
     error(err.message);
     // fallback a cache local
