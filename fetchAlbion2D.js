@@ -4,26 +4,40 @@ import path from 'path';
 import { info, error } from './utils/logger.js';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'prices2d.json');
-const CITIES = ["Caerleon","Bridgewatch","Lymhurst","Martlock","Thetford","Fort Sterling","Brecilien"];
 
-const API_URL = (id, q) => `https://west.albion-online-data.com/api/v2/stats/prices/${encodeURIComponent(id)}.json?locations=${CITIES.join(',')}&qualities=${q}`;
+const API_URL = (id, q) => `https://www.checkprices.net/api/v1/items/${encodeURIComponent(id)}/prices`;
 
 function normalizeApi(apiData) {
   const result = {};
-  for (const entry of apiData || []) {
-    const city = entry.city || entry.location;
-    if (!CITIES.includes(city)) continue;
+
+  if (!apiData || !apiData.items) return result;
+
+  for (const entry of apiData.items) {
+    const city = entry.city;
+    if (!city) continue;
+
     if (!result[city]) result[city] = { sell: [], buy: [], updated: null };
-    if (entry.sell_price_min && entry.sell_price_min > 0) result[city].sell.push({ price: entry.sell_price_min, date: entry.sell_price_min_date || entry.timestamp || null });
-    if (entry.buy_price_max && entry.buy_price_max > 0) result[city].buy.push({ price: entry.buy_price_max, date: entry.buy_price_max_date || entry.timestamp || null });
-    const cand = entry.sell_price_min_date || entry.buy_price_max_date || entry.timestamp;
-    if (cand && (!result[city].updated || new Date(cand) > new Date(result[city].updated))) result[city].updated = cand;
+
+    if (entry.sell_price_min && entry.sell_price_min > 0) {
+      result[city].sell.push({ price: entry.sell_price_min, date: entry.sell_price_min_date || null });
+    }
+    if (entry.buy_price_max && entry.buy_price_max > 0) {
+      result[city].buy.push({ price: entry.buy_price_max, date: entry.buy_price_max_date || null });
+    }
+
+    const dates = [entry.sell_price_min_date, entry.buy_price_max_date].filter(Boolean);
+    for (const d of dates) {
+      if (!result[city].updated || new Date(d) > new Date(result[city].updated)) {
+        result[city].updated = d;
+      }
+    }
   }
-  // keep only recent 10 per city
-  for (const c of Object.keys(result)) {
-    result[c].sell = result[c].sell.sort((a,b)=> new Date(b.date) - new Date(a.date)).slice(0, 10);
-    result[c].buy = result[c].buy.sort((a,b)=> new Date(b.date) - new Date(a.date)).slice(0, 10);
+
+  for (const city of Object.keys(result)) {
+    result[city].sell = result[city].sell.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    result[city].buy = result[city].buy.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
   }
+
   return result;
 }
 
@@ -46,7 +60,7 @@ export async function fetchPrices(itemId, quality = 1) {
     return { updated: new Date().toISOString(), precios: adapted };
   } catch (err) {
     error(err.message);
-    // fallback to cache file if exists
+    // fallback a cache local
     try {
       const raw = fs.readFileSync(DATA_FILE, 'utf8');
       return JSON.parse(raw);
