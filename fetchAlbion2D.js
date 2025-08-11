@@ -49,15 +49,15 @@ function normalizeApi(apiData) {
 
 export async function fetchPrices(itemId, quality = 1) {
   try {
-    info(`Fetching API2 ${itemId} q=${quality}`);
+    info(`Fetching backend2 API ${itemId} quality=${quality}`);
     const url = API_URL(itemId, quality);
-    console.log(`Fetch URL: ${url}`);
+    console.log(`Fetching URL: ${url}`);
 
     const r = await fetch(url);
     if (!r.ok) throw new Error(`API status ${r.status}`);
 
     const json = await r.json();
-    console.log('API response:', json);
+    console.log('API response length:', json.length);
 
     const norm = normalizeApi(json);
     const adapted = {};
@@ -65,13 +65,27 @@ export async function fetchPrices(itemId, quality = 1) {
       adapted[city] = {
         orden_venta: val.sell.map(s => ({ precio: s.price, fecha: s.date })),
         orden_compra: val.buy.map(b => ({ precio: b.price, fecha: b.date })),
-        actualizado: val.updated
+        actualizado: val.updated,
       };
     }
 
+    // Guardar cache local
+    try {
+      let cache = { updated: new Date().toISOString(), precios: {} };
+      if (fs.existsSync(DATA_FILE)) {
+        cache = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      }
+      cache.precios[itemId] = adapted;
+      cache.updated = new Date().toISOString();
+      fs.writeFileSync(DATA_FILE, JSON.stringify(cache, null, 2));
+    } catch (e) {
+      error('Error writing cache: ' + e.message);
+    }
+
     return { updated: new Date().toISOString(), precios: adapted };
+
   } catch (err) {
-    error(err.message);
+    error('fetchPrices backend2 error: ' + err.message);
     // fallback a cache local
     try {
       const raw = fs.readFileSync(DATA_FILE, 'utf8');
