@@ -10,7 +10,7 @@
     "axios": "^X.Y.Z",
     "express": "^X.Y.Z",
     "cors": "^X.Y.Z",
-    "node-cron": "^X.Y.Z"
+    "node-cron": "^X.Y.Z",
     "node-fetch": "^2.6.7"
   }
 }
