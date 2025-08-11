@@ -1,4 +1,3 @@
-// albionsito-backend2/fetchAlbion2D.js
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
@@ -38,10 +37,11 @@ function normalizeApi(apiData) {
   for (const city of Object.keys(result)) {
     result[city].sell = result[city].sell
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 10);
+      .slice(0, 5);
+
     result[city].buy = result[city].buy
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 10);
+      .slice(0, 5);
   }
 
   return result;
