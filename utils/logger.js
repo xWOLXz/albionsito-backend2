@@ -1,9 +1,7 @@
-// utils/logger.js
+export function info(...args) {
+  console.log('[Backend2]', ...args);
+}
 
-export const info = (...args) => {
-  console.log('[INFO]', ...args);
-};
-
-export const error = (...args) => {
-  console.error('[ERROR]', ...args);
-};
+export function error(...args) {
+  console.error('[Backend2]', ...args);
+}
