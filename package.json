@@ -6,11 +6,14 @@
   "scripts": {
     "start": "node server.js"
   },
+  {
   "dependencies": {
-    "axios": "^X.Y.Z",
-    "express": "^X.Y.Z",
-    "cors": "^X.Y.Z",
-    "node-cron": "^X.Y.Z",
-    "node-fetch": "^2.6.7"
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-cron": "^3.0.0",
+    "node-fetch": "^2.6.12",
+    "axios": "^1.4.0"
+  }
+}
   }
 }
